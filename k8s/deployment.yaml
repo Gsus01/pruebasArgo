@@ -1,0 +1,20 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+    name: mi-app-python-deployment
+spec:
+    replicas: 2
+    selector:
+        matchLabels:
+            app: mi-app-python
+    template:
+        metadata:
+            labels:
+                app: mi-app-python
+        spec:
+            containers:
+            - name: web-server
+            image: mi-app-python:latest
+            imagePullPolicy: IfNotPresent
+            ports:
+            - containerPort: 8080
