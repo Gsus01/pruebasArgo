@@ -14,7 +14,7 @@ spec:
         spec:
             containers:
             - name: web-server
-            image: mi-app-python:latest
-            imagePullPolicy: IfNotPresent
-            ports:
-            - containerPort: 8080
+              image: mi-app-python:0.1        # <-- Corregido (con 2 espacios más)
+              imagePullPolicy: IfNotPresent # <-- Corregido (con 2 espacios más)
+              ports:                        # <-- Corregido (con 2 espacios más)
+              - containerPort: 8080
