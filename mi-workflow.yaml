@@ -1,0 +1,65 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: pipeline-series-temporales- # Argo añadirá un ID único
+spec:
+  entrypoint: pipeline-completo
+  
+  # --- Definición del DAG (Directed Acyclic Graph) ---
+  templates:
+  - name: pipeline-completo
+    dag:
+      tasks:
+        # Tarea 1: No tiene dependencias
+        - name: crear-datos
+          template: task-template
+          arguments:
+            parameters: [{name: script-name, value: "01_create_initial_data.py"}]
+
+        # Tarea 2: Depende de la Tarea 1
+        - name: seleccionar-columnas
+          template: task-template
+          dependencies: [crear-datos]
+          arguments:
+            parameters: [{name: script-name, value: "02_select_columns.py"}]
+
+        # Tarea 3: Depende de la Tarea 2
+        - name: entrenar-modelo
+          template: task-template
+          dependencies: [seleccionar-columnas]
+          arguments:
+            parameters: [{name: script-name, value: "03_train_model.py"}]
+        
+        # Tarea 4: Depende de la Tarea 3
+        - name: generar-datos-sinteticos
+          template: task-template
+          dependencies: [entrenar-modelo]
+          arguments:
+            parameters: [{name: script-name, value: "04_generate_data.py"}]
+
+  # --- Plantilla Genérica para ejecutar nuestros scripts ---
+  # Usamos la misma plantilla para todos los pasos, solo cambiamos el script a ejecutar
+  - name: task-template
+    inputs:
+      parameters:
+      - name: script-name
+    container:
+      image: pipeline-ts:0.1
+      imagePullPolicy: IfNotPresent
+      command: [python]
+      args: ["{{inputs.parameters.script-name}}"]
+      # Todos los contenedores compartirán el mismo volumen para pasarse los datos
+      volumeMounts:
+      - name: workdir
+        mountPath: /tmp/data
+
+  # --- Definición del Volumen Compartido ---
+  # Esto es crucial. Es el "disco" donde los pasos dejan y recogen los ficheros.
+  volumeClaimTemplates:
+  - metadata:
+      name: workdir
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      resources:
+        requests:
+          storage: 1Gi # Solicitamos 1 Gigabyte de espacio

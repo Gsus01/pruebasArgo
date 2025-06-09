@@ -1,11 +1,8 @@
-FROM python:3.12-slim
+FROM python:3.9-slim
 
+# Instalar dependencias
+RUN pip install pandas numpy
+
+# Copiar todos nuestros scripts
+COPY . /app
 WORKDIR /app
-
-COPY requirements.txt .
-
-RUN pip install --no-cache-dir -r requirements.txt
-
-COPY app.py .
-
-CMD ["flask", "run", "--host=0.0.0.0", "--port=8080"]
