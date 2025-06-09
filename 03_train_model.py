@@ -2,14 +2,20 @@
 import pandas as pd
 import json
 import os
+import argparse
+
+parser = argparse.ArgumentParser(description="Entrena un modelo sencillo")
+parser.add_argument("--input", default="/tmp/data/selected_data.csv",
+                    help="Ruta del CSV de entrada")
+parser.add_argument("--output", default="/tmp/data/model.json",
+                    help="Ruta del JSON con el modelo de salida")
+args = parser.parse_args()
 
 print("Paso 3: 'Entrenando' el modelo...")
-os.makedirs('/tmp/data', exist_ok=True)
+os.makedirs(os.path.dirname(args.output), exist_ok=True)
 
-input_path = '/tmp/data/selected_data.csv'
-df = pd.read_csv(input_path)
+df = pd.read_csv(args.input)
 
-# Modelo "tonto": se basa en el último valor y la media/std de los cambios
 last_value = df['value1'].iloc[-1]
 diff_mean = df['value1'].diff().mean()
 diff_std = df['value1'].diff().std()
@@ -20,9 +26,7 @@ model_params = {
     'std_increment': diff_std
 }
 
-# Guardamos los parámetros del "modelo" en un JSON
-output_path = '/tmp/data/model.json'
-with open(output_path, 'w') as f:
+with open(args.output, 'w') as f:
     json.dump(model_params, f)
 
-print(f"Modelo guardado en {output_path}")
+print(f"Modelo guardado en {args.output}")

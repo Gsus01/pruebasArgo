@@ -2,10 +2,16 @@
 import pandas as pd
 import numpy as np
 import os
+import argparse
+
+parser = argparse.ArgumentParser(description="Genera un dataset de ejemplo")
+parser.add_argument("--output", default="/tmp/data/raw_data.csv",
+                    help="Ruta donde guardar el CSV de salida")
+args = parser.parse_args()
 
 print("Paso 1: Creando datos iniciales...")
 # Crear un directorio para la salida si no existe
-os.makedirs('/tmp/data', exist_ok=True)
+os.makedirs(os.path.dirname(args.output), exist_ok=True)
 
 # Crear un DataFrame de ejemplo
 timestamps = pd.to_datetime(pd.date_range(start='2025-01-01', periods=100, freq='D'))
@@ -21,7 +27,6 @@ df = pd.DataFrame({
 })
 
 # Guardar en un fichero CSV que será nuestro "artefacto" de salida
-output_path = '/tmp/data/raw_data.csv'
-df.to_csv(output_path, index=False)
+df.to_csv(args.output, index=False)
 
-print(f"Datos iniciales guardados en {output_path}")
+print(f"Datos iniciales guardados en {args.output}")
