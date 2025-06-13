@@ -4,14 +4,8 @@ metadata:
   generateName: pipeline-series-temporales-
 spec:
   entrypoint: pipeline-completo
-  volumeClaimTemplates:
-  - metadata:
-      name: workdir
-    spec:
-      accessModes: ["ReadWriteOnce"]
-      resources:
-        requests:
-          storage: 1Gi
+  serviceAccountName: default # Asegúrate que este SA tiene permisos para leer el secret de MinIO si es necesario.
+
   templates:
   - name: pipeline-completo
     dag:
@@ -22,9 +16,9 @@ spec:
         dependencies: [crear-datos]
         template: seleccionar-columnas
         arguments:
-          artifacts:
-          - name: raw-data
-            from: "{{tasks.crear-datos.outputs.artifacts.raw-data}}"
+          artifacts: # Pasar el output de crear-datos como input a seleccionar-columnas
+          - name: raw-data-input # Debe coincidir con el nombre del input artifact en el template 'seleccionar-columnas'
+            from: "{{tasks.crear-datos.outputs.artifacts.created-initial-data}}"
       - name: entrenar-modelo-a
         dependencies: [seleccionar-columnas]
         template: entrenar-modelo
@@ -32,9 +26,9 @@ spec:
           parameters:
           - name: model-name
             value: "a"
-          artifacts:
-          - name: selected-data
-            from: "{{tasks.seleccionar-columnas.outputs.artifacts.selected-data}}"
+          artifacts: # Pasar el output de seleccionar-columnas como input a entrenar-modelo
+          - name: training-input-data # Debe coincidir con el nombre del input artifact en el template 'entrenar-modelo'
+            from: "{{tasks.seleccionar-columnas.outputs.artifacts.selected-columns-data}}"
       - name: entrenar-modelo-b
         dependencies: [seleccionar-columnas]
         template: entrenar-modelo
@@ -43,8 +37,8 @@ spec:
           - name: model-name
             value: "b"
           artifacts:
-          - name: selected-data
-            from: "{{tasks.seleccionar-columnas.outputs.artifacts.selected-data}}"
+          - name: training-input-data
+            from: "{{tasks.seleccionar-columnas.outputs.artifacts.selected-columns-data}}"
       - name: entrenar-modelo-c
         dependencies: [seleccionar-columnas]
         template: entrenar-modelo
@@ -53,8 +47,8 @@ spec:
           - name: model-name
             value: "c"
           artifacts:
-          - name: selected-data
-            from: "{{tasks.seleccionar-columnas.outputs.artifacts.selected-data}}"
+          - name: training-input-data
+            from: "{{tasks.seleccionar-columnas.outputs.artifacts.selected-columns-data}}"
       - name: generar-datos-a
         dependencies: [entrenar-modelo-a]
         template: generar-datos
@@ -62,9 +56,9 @@ spec:
           parameters:
           - name: model-name
             value: "a"
-          artifacts:
-          - name: model
-            from: "{{tasks.entrenar-modelo-a.outputs.artifacts.model}}"
+          artifacts: # Pasar el output del modelo entrenado como input a generar-datos
+          - name: model-input-file # Debe coincidir con el nombre del input artifact en el template 'generar-datos'
+            from: "{{tasks.entrenar-modelo-a.outputs.artifacts.trained-model-file}}"
       - name: generar-datos-b
         dependencies: [entrenar-modelo-b]
         template: generar-datos
@@ -73,8 +67,8 @@ spec:
           - name: model-name
             value: "b"
           artifacts:
-          - name: model
-            from: "{{tasks.entrenar-modelo-b.outputs.artifacts.model}}"
+          - name: model-input-file
+            from: "{{tasks.entrenar-modelo-b.outputs.artifacts.trained-model-file}}"
       - name: generar-datos-c
         dependencies: [entrenar-modelo-c]
         template: generar-datos
@@ -83,73 +77,65 @@ spec:
           - name: model-name
             value: "c"
           artifacts:
-          - name: model
-            from: "{{tasks.entrenar-modelo-c.outputs.artifacts.model}}"
+          - name: model-input-file
+            from: "{{tasks.entrenar-modelo-c.outputs.artifacts.trained-model-file}}"
 
   - name: crear-datos
-    outputs:
-      artifacts:
-      - name: raw-data
-        path: /tmp/data/raw_data.csv
     container:
       image: pipeline-ts:0.1
-      command: [python, 01_create_initial_data.py]
-      args: ["--output", "/tmp/data/raw_data.csv"]
-      volumeMounts:
-      - name: workdir
-        mountPath: /tmp/data
+      # Modificamos el comando para ejecutar el script y luego listar el contenido de /tmp
+      command: ["sh", "-c"]
+      args: ["python /app/01_create_initial_data.py --output-path /tmp/initial_data.dat && echo 'Contenido de /tmp después de la ejecución del script:' && ls -l /tmp"]
+    outputs:
+      artifacts:
+      - name: created-initial-data # Nombre del artefacto de salida
+        path: /tmp/initial_data.dat # Path dentro del container donde el script escribe el artefacto
 
   - name: seleccionar-columnas
     inputs:
       artifacts:
-      - name: raw-data
-        path: /tmp/data/raw_data.csv
-    outputs:
-      artifacts:
-      - name: selected-data
-        path: /tmp/data/selected_data.csv
+      - name: raw-data-input # Nombre del artefacto de entrada
+        path: /tmp/initial_data.dat # Path dentro del container donde Argo colocará el artefacto
     container:
       image: pipeline-ts:0.1
-      command: [python, 02_select_columns.py]
-      args: ["--input", "/tmp/data/raw_data.csv", "--output", "/tmp/data/selected_data.csv"]
-      volumeMounts:
-      - name: workdir
-        mountPath: /tmp/data
+      # Asume que el script ahora acepta --input-path y --output-path y usa /tmp/
+      command: [python, /app/02_select_columns.py, --input-path, /tmp/initial_data.dat, --output-path, /tmp/selected_columns.dat]
+    outputs:
+      artifacts:
+      - name: selected-columns-data
+        path: /tmp/selected_columns.dat
 
   - name: entrenar-modelo
     inputs:
       parameters:
       - name: model-name
       artifacts:
-      - name: selected-data
-        path: /tmp/data/selected_data.csv
-    outputs:
-      artifacts:
-      - name: model
-        path: /tmp/data/model-{{inputs.parameters.model-name}}.json
+      - name: training-input-data # Artefacto de entrada para los datos seleccionados
+        path: /tmp/selected_columns.dat
     container:
       image: pipeline-ts:0.1
-      command: [python, 03_train_model.py]
-      args: ["--input", "/tmp/data/selected_data.csv", "--output", "/tmp/data/model-{{inputs.parameters.model-name}}.json"]
-      volumeMounts:
-      - name: workdir
-        mountPath: /tmp/data
+      imagePullPolicy: Never
+      # Asume que el script ahora acepta --input-data-path y el --output usa /tmp/
+      command: [python, /app/03_train_model.py]
+      args: ["--input-data-path", "/tmp/selected_columns.dat", "--output", "/tmp/model-{{inputs.parameters.model-name}}.json"]
+    outputs:
+      artifacts:
+      - name: trained-model-file
+        path: /tmp/model-{{inputs.parameters.model-name}}.json
 
   - name: generar-datos
     inputs:
       parameters:
       - name: model-name
       artifacts:
-      - name: model
-        path: /tmp/data/model-{{inputs.parameters.model-name}}.json
+      - name: model-input-file # Artefacto de entrada para el modelo
+        path: /tmp/model-{{inputs.parameters.model-name}}.json
     container:
       image: pipeline-ts:0.1
-      command: [python, 04_generate_data.py]
-      args: ["--input", "/tmp/data/model-{{inputs.parameters.model-name}}.json", "--output", "/tmp/data/synthetic_data-{{inputs.parameters.model-name}}.csv"]
-      volumeMounts:
-      - name: workdir
-        mountPath: /tmp/data
+      # Args actualizados para usar paths en /tmp/
+      command: [python, /app/04_generate_data.py]
+      args: ["--input", "/tmp/model-{{inputs.parameters.model-name}}.json", "--output", "/tmp/synthetic_data-{{inputs.parameters.model-name}}.csv"]
     outputs:
       artifacts:
-      - name: synthetic-data
-        path: /tmp/data/synthetic_data-{{inputs.parameters.model-name}}.csv
+      - name: generated-synthetic-data
+        path: /tmp/synthetic_data-{{inputs.parameters.model-name}}.csv

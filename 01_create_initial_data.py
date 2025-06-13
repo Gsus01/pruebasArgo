@@ -5,13 +5,15 @@ import os
 import argparse
 
 parser = argparse.ArgumentParser(description="Genera un dataset de ejemplo")
-parser.add_argument("--output", default="/tmp/data/raw_data.csv",
+parser.add_argument("--output-path", default="/tmp/initial_data.dat",
                     help="Ruta donde guardar el CSV de salida")
 args = parser.parse_args()
 
 print("Paso 1: Creando datos iniciales...")
-# Crear un directorio para la salida si no existe
-os.makedirs(os.path.dirname(args.output), exist_ok=True)
+print(f"Output file: {args.output_path}")
+
+# Crear un directorio para la salida si no existe  
+os.makedirs(os.path.dirname(args.output_path), exist_ok=True)
 
 # Crear un DataFrame de ejemplo
 timestamps = pd.to_datetime(pd.date_range(start='2025-01-01', periods=100, freq='D'))
@@ -27,6 +29,8 @@ df = pd.DataFrame({
 })
 
 # Guardar en un fichero CSV que será nuestro "artefacto" de salida
-df.to_csv(args.output, index=False)
+df.to_csv(args.output_path, index=False)
 
-print(f"Datos iniciales guardados en {args.output}")
+print(f"Datos iniciales guardados en {args.output_path}")
+print(f"Archivo creado correctamente: {os.path.exists(args.output_path)}")
+print(f"Tamaño del archivo: {os.path.getsize(args.output_path) if os.path.exists(args.output_path) else 'No existe'} bytes")

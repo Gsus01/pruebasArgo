@@ -6,9 +6,9 @@ import os
 import argparse
 
 parser = argparse.ArgumentParser(description="Genera datos sintéticos a partir de un modelo")
-parser.add_argument("--input", default="/tmp/data/model.json",
+parser.add_argument("--input", default="/tmp/model.json", # El nombre específico del modelo se pasará como argumento en el workflow
                     help="Ruta del JSON con el modelo de entrada")
-parser.add_argument("--output", default="/tmp/data/synthetic_data.csv",
+parser.add_argument("--output", default="/tmp/synthetic_data.csv", # El nombre específico del csv se pasará como argumento en el workflow
                     help="Ruta donde guardar el CSV generado")
 args = parser.parse_args()
 
